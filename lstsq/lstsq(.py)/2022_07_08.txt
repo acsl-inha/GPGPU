@@ -1,0 +1,245 @@
+class Shared:
+    def __init__(self, A, b, learning_rate, constrained):
+        ## input matrix's shape
+        self.length = A.shape[0]
+        self.width = A.shape[1]
+        
+        ## in CPU
+        self.A = np.float32(A)
+        self.b = np.float32(b)
+        self.theta = np.float32(np.zeros(self.width))
+        self.out = np.float32(np.zeros(self.length))
+        self.grad = np.float32(np.zeros(self.width))
+        self.constrained = np.float32(constrained)
+
+        ## in GPU
+        self.GPU_A = gpuarray.to_gpu(self.A.reshape(self.length*self.width))
+        self.GPU_b = gpuarray.to_gpu(self.b)
+        self.GPU_theta = gpuarray.to_gpu(self.theta)
+        self.GPU_out = gpuarray.to_gpu(self.out)
+        self.GPU_grad = gpuarray.to_gpu(self.grad)
+
+        ## for initialize out vector and grad vector
+        self.init_out = gpuarray.empty_like(self.GPU_out)
+        self.init_grad = gpuarray.empty_like(self.GPU_grad)
+
+        ## TPB: thread_per_block, BPG: block_per_grid        
+        self.TPB, self.BPG = self.optimal_block_size(self.length)
+
+        ## learning_rate
+        self.learning_rate = learning_rate
+
+    def optimal_block_size(self, n):
+        
+        thread_per_block = int(math.sqrt(n / 2))
+
+        block_per_grid = int(n / thread_per_block) + 1
+
+
+        return thread_per_block, block_per_grid
+
+    def momentum(self):
+        self.s = self.learning_rate
+        self.beta = 1/3
+
+    def nesterov(self):
+        self.GPU_solution = gpuarray.empty_like(self.theta)
+        self.alpha = self.learning_rate
+
+
+
+class Optimizer:
+    def __init__(self, shared):
+        self.shared = shared
+
+        self.kernel_function()
+
+    def run(self):
+        return NotImplementedError()
+
+    def kernel_function(self):
+        return NotImplementedError()
+        
+    def initialize(self):
+        return NotImplementedError()
+
+
+
+class GradientMethod(Optimizer):
+    def __init__(self, shared):
+        super().__init__(shared)
+
+    def run(self):
+
+        self.gradient_method(self.shared.GPU_theta,
+                             self.shared.GPU_grad,
+                             np.float32(self.shared.learning_rate),
+                             block=(self.shared.width,1,1),
+                             grid=(1,1,1))
+
+        self.initialize()
+        
+    def kernel_function(self):
+
+        ## block=(width,1,1), grid=(1,1,1)
+        gradient_method_ker = SourceModule(
+            """
+            #define x (threadIdx.x)
+
+            __global__ void gradient_method (float* theta, float* grad, float learning_rate) {
+                theta[x] -= learning_rate * grad[x];
+
+                __syncthreads();
+            }
+            """
+        )
+
+        self.gradient_method = gradient_method_ker.get_function("gradient_method")
+
+    def initialize(self):
+        self.shared.GPU_grad[:] = self.shared.init_grad[:]
+
+
+
+class MomentumMethod(Optimizer):
+    def __init__(self, shared):
+        super().__init__(shared)
+
+    def run(self):
+
+        self.momentum_method(self.shared.GPU_theta,
+                             self.shared.GPU_grad,
+                             np.float32(self.shared.s),
+                             block=(self.shared.width,1,1),
+                             grid=(1,1,1))
+                             
+        self.initialize()
+
+    def kernel_function(self):
+
+        ## block=(width,1,1), grid=(1,1,1)
+        momentum_method_ker_function = \
+        """
+        #define x (threadIdx.x)
+
+        __global__ void momentum_method (float* theta, float* grad, float s) {
+            theta[x] -= s * grad[x];
+
+            __syncthreads();
+        }
+        """
+        momentum_method_ker = SourceModule(momentum_method_ker_function)
+        
+        ## block=(width,1,1), grid=(1,1,1)
+        momentum_ker_function = \
+        """
+        #define x (threadIdx.x)
+
+        __global__ void momentum (float* grad, float beta) {
+
+            grad[x] *= beta;
+        }
+        """
+        momentum_ker = SourceModule(momentum_ker_function)
+
+        self.momentum_method = momentum_method_ker.get_function("momentum_method")
+        self.momentum = momentum_ker.get_function("momentum")
+
+    def initialize(self):
+        self.momentum(self.shared.GPU_grad,
+                      np.float32(self.shared.beta),
+                      block=(self.shared.width,1,1),
+                      grid=(1,1,1))
+                      
+
+
+class Nesterov(Optimizer):
+    def __init__(self, shared):
+        super.__init__(shared)
+
+    def run(self):
+        pass
+
+    def kernel_function(self):
+
+        ## block=(width,1,1), grid=(1,1,1)
+        nesterov_method_ker_function = \
+        """
+        #define x (threadIdx.x)
+
+        __global__ void nesterov_method (float* grad, float* solution, float* theta, float learning_rate) {
+
+            solution[x] = theta[x] - learning_rate * grad[x];
+        }
+        """
+
+
+        nesterov_ker_function = \
+        """
+        #define x (threadIdx.x)
+
+        __global__ void nesterov (float* solution, float* p_solution, int iter) {
+            
+            float u = 1 - 3 / (5 + iter);
+
+            theta[x] = solution[x] + u * (solution[x] - p_solution[x]);
+
+            __syncthreads();
+
+            p_solution[x] = solution[x];
+
+            __syncthreads();
+        }
+        """
+        
+    def initialize(self):
+
+        pass
+
+
+
+class LeastSquare:
+    def __init__(self, A, b, learning_rate, epoches=10, iteration=5, optimize_method="GD", constrained=None):
+        ## shared
+        self.shared = Shared(A, b, learning_rate)
+
+        ## gradient
+        self.get_gradient = GetGradient(self.shared)
+        
+        ## optimizer
+        if optimize_method == "GD":
+            self.optimizer = GradientMethod(self.shared)
+        
+        elif optimize_method == "momentum":
+            self.optimizer = MomentumMethod(self.shared)
+            self.shared.momentum()
+
+        elif optimize_method == "Nesterov":
+            self.optimizer = NesterovMethod(self.shared)
+            self.shared.nesterov()
+            
+        else:
+            return NotImplementedError()
+
+        ## epoches, iteration
+        self.epoches = epoches
+        self.iteration = iteration
+
+        ## constrained
+
+
+        ## error log
+        self.error = np.zeros(epoches)
+
+    def solve(self):
+        for epoch in range(self.epoches):
+            for iter in range(self.iteration):
+                ## get gradient
+                self.get_gradient.run()
+
+                ## optimize
+                self.optimizer.run()
+
+    def record_error(self, epoch):
+
+        self.error[epoch] = np.linalg.norm(self.shared.GPU_out.get())

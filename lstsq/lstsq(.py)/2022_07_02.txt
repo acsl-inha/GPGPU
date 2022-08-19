@@ -1,0 +1,96 @@
+def optimal_block_size(n):
+    
+    thread_per_block = int(math.sqrt(n / 2))
+
+    block_per_grid = int(n / thread_per_block) + 1
+
+
+    return thread_per_block, block_per_grid
+
+
+
+## block=(thread_per_block,1,1), grid=(block_per_grid,1,1)
+first_ker = SourceModule(
+    """
+    #define x (threadIdx.x + blockIdx.x * blockDim.x)
+
+    __global__ void first_ker(float* out, float* A, float* theta, int length, int width) {
+        
+        if (x < length) {
+            for (int j = 0; j < width;, j++) {
+                int index = x * width + j;
+
+                out[x] += A[index] * theta[j];
+            }
+        }
+    }
+    """
+)
+
+
+
+## block=(thread_per_block,1,1), grid=(block_per_grid,1,1)
+second_ker = SourceModule(
+    """
+    #define x (threadIdx.x + blockIdx.x * blockDim.x)
+
+    __global__ void second_ker(float* out, float* b, int length) {
+
+        if (x < length) {
+            out[x] = out[x] - b[x];
+        }
+    }
+    """
+)
+
+
+
+## block=(block_per_grid,1,1), grid=(width,1,1)
+third_ker = SourceModule(
+    """
+    __global__ void third_ker(float* grad, float* A, float* out, int thread_per_block, int block_per_grid, int width) {
+
+        __shared__ float* grad_jerk[gridDim.x];
+
+        for (int i = 0; i < thread_per_block; i++) {
+            int index1 = threadIdx.x * block_per_grid + i;
+            int index2 = index1 * gridDim.x + blockIdx.x;
+             
+            grad_jerk[threadIdx.x] += A[index2] * out[index1];
+        }
+
+        if (threadIdx.x == 0) {
+            for (int i = 0; i < gridDim.x; i++) {
+                grad[x] += grad_jerk[i];
+            }
+        }
+    }
+    """
+)
+
+
+
+## block=(width,1,1), grid=(1,1,1)
+gradient_method_ker = SourceModule(
+    """
+    #define x (threadIdx.x)
+
+    __global__ void gradient_method (float* n_theta, float* theta, float* grad, float learning_rate) {
+        n_theta[x] = theta[x] - learning_rate * grad[x];
+    }
+    """
+)
+
+
+
+## block=(width,1,1), grid=(1,1,1)
+momentum_method_ker = SourceModule(
+    """
+    #define x (threadIdx.x)
+
+    __global__ void momentum_method (float* n_theta, float* theta, float* grad, float* n_momentum, float* momentum, float s, float beta) {
+        n_theta[x] = theta[x] - s * momentum[x];
+        n_momentum[x] = grad[x] + beta * momentum[x];
+    }
+    """
+)
