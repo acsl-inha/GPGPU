@@ -1,5 +1,7 @@
 # GPGPU
-Written by Daegeun
+Written by Daegeun<br>
+여기 Tex 문법 되는거 아닌가요..?<br>
+뭔가 굉장히 불편한데요..
 
 ## folders
 ### 1. Numba
