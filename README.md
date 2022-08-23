@@ -14,8 +14,8 @@ CUDA를 활용해 만든 첫번쨰 파일로 least square 문제를 경사하강
 
 ### 4. minimum energy control
 CUDA를 활용해 만든 두번째 파일로 
-> $\quad min \qquad \begin{Vmatrix} u \end{Vmatrix}$ <br> 
-> $subject\ to\ Gu = x_{des} - Q - A^nx_0$ <br> 
+> $\quad min \qquad \qquad \begin{Vmatrix} u \end{Vmatrix}$ <br> 
+> $subject\ to.\quad Gu = x_{des} - Q - A^nx_0$ <br> 
 
 의 문제를 푸는 프레임워크 입니다.
 
