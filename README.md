@@ -32,7 +32,7 @@ kernel_function의 'get_error_vector' ~ 'get_norm_of_gradient'을 살펴보세�
 
 ### 3. get_gradient.py
 gradient를 계산하는 함수를 담고 있습니다. 
-$\nabla f = \begin{Vmatrix} A^T(Ax - b) \end{Vmatrix}$
+> $\nabla f = \begin{Vmatrix} A^T(Ax - b) \end{Vmatrix}^2$
 를 통해 계산합니다.
 
 ### 4. kernel_function.py
