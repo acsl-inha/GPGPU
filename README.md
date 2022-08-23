@@ -31,7 +31,9 @@ kernel_function의 project_function을 살펴보세요
 kernel_function의 'get_error_vector' ~ 'get_norm_of_gradient'을 살펴보세요.
 
 ### 3. get_gradient.py
-gradient를 계산하는 함수를 담고 있습니다. $\nabla f = \begin{Vmatrix} A^T(Ax - b) \end{Vmatrix}$를 통해 계산합니다.
+gradient를 계산하는 함수를 담고 있습니다. 
+$\nabla f = \begin{Vmatrix} A^T(Ax - b) \end{Vmatrix}$
+를 통해 계산합니다.
 
 ### 4. kernel_function.py
 minimum energy control 문제를 풀기 위해 사용되는 모든 GPU kernel function들을 담고 있는 파일입니다.
