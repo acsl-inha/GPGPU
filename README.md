@@ -21,7 +21,7 @@ CUDA를 활용해 만든 두번째 파일로
 
 ## files
 ### 1. constraints_for_input.py
-3차원 input, $u_x$, $u_y$, $u_z$에 대해 u의 크기가 upper_boundary와 lower_boundary에 있도록 사영시켜주는 함수를 담고 있습니다.
+3차원 input, $u_x$, $u_y$, $u_z$ 에 대해 u의 크기가 upper_boundary와 lower_boundary에 있도록 사영시켜주는 함수를 담고 있습니다.
 
 kernel_function의 project_function을 살펴보세요
 
