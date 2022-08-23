@@ -47,7 +47,7 @@ kernel_function의 'get_gradient' ~ 'get_mva_bias'을 살펴보세요.
 
 ### 6. optimizer.py
 경사하강법의 학습을 담당하고 있는 파일입니다. 
->$opt_theta = theta - learning_rate * gradient$<br>
+> $opt_theta = theta - learning_rate * \nabla f$<br>
 
 라는 간단한 수식을 담고있습니다.
 
